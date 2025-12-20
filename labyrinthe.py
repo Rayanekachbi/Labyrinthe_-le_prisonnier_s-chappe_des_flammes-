@@ -114,28 +114,47 @@ class LabyrinthSimulation:
         
     def update_fire_state(self) -> bool:
         #on trouve toutes les cases qui s'appretent à bruler et on les met en F
-        for r in self.rows:
-            for c in self.cols:
+        for r in range(self.rows):
+            for c in range(self.cols):
                 if self.grid[r][c] == 'A':
                     self.grid[r][c] = 'F'
         game_over = False
         #avec self.burn_around(r,c) on verifie si le prisonnier ou la sortie sont brulés
-        for r in self.rows:
-            for c in self.cols:
+        for r in range(self.rows):
+            for c in range(self.cols):
                 if self.grid[r][c] == 'F':
                     if self.burn_around(r,c):
                         game_over = True
         return game_over
     
     def run(self) -> str:
-        """
-        Pour l'instant, on fait juste un test d'affichage.
-        Plus tard, tu mettras ici ta boucle A* ou la simulation.
-        """
-        # Exemple de logique temporaire
-        print(f"Lancement de la simulation sur une grille {self.rows}x{self.cols}")
-        print(self) # Affiche la carte grâce à __str__
-        return "Y" # Valeur par défaut pour tester
+        turn = 0
+        max_turns = self.rows * self.cols
+        
+        print("--- État initial ---")
+        print(self)
+
+        while turn < max_turns:
+            turn += 1
+            print(f"\n--- Tour {turn} ---")
+
+            # 1. PROPAGATION DU FEU
+            feu_gagne = self.update_fire_state()
+            if feu_gagne:
+                print(self) # On affiche le désastre
+                print("Le feu a atteint le prisonnier ou la sortie !")
+                return "N"
+
+            # 2. DÉPLACEMENT DU PRISONNIER
+            prisonnier_gagne = self.move_prisoner()
+            
+            # On affiche la carte après les deux mouvements
+            print(self)
+
+            if prisonnier_gagne:
+                return "Y"
+                
+        return "N"
 
     def __str__(self):
         """
