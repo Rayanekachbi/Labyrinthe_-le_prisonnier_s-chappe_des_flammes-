@@ -129,6 +129,43 @@ class LabyrinthSimulation:
                         game_over = True
         return game_over
     
+    def compute_fire_spread(self) -> List[List[int]]:
+        """
+        Calcule pour chaque case le temps (tour) auquel le feu arrivera.
+        Retourne une grille d'entiers (INF si le feu n'atteint jamais la case).
+        """
+        fire_times = [[float('inf') for _ in range(self.cols)] for _ in range(self.rows)]
+        queue = []
+
+        # On initialise avec tous les feux de départ
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if self.grid[r][c] == 'F':
+                    fire_times[r][c] = 0
+                    queue.append((r, c)) 
+                elif self.grid[r][c] == '#':
+                    fire_times[r][c] = -1 
+
+        # BFS pour propager les temps
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        
+        while queue:
+            r, c = queue.pop(0) 
+            
+            current_time = fire_times[r][c]
+            next_time = current_time + 1
+
+            for dr, dc in directions:
+                nr, nc = r + dr, c + dc
+                
+                if 0 <= nr < self.rows and 0 <= nc < self.cols:
+                    # Si ce n'est pas un mur et qu'on n'a pas déjà trouvé un chemin plus court pour le feu
+                    if self.grid[nr][nc] != '#' and fire_times[nr][nc] > next_time:
+                        fire_times[nr][nc] = next_time
+                        queue.append((nr, nc))
+        
+        return fire_times
+    
     
     def heuristic(self, a: Tuple[int, int], b: Tuple[int, int]) -> int:
         # Distance de Manhattan : |x1 - x2| + |y1 - y2|
@@ -202,10 +239,70 @@ class LabyrinthSimulation:
                         heapq.heappush(open_set, (f, neighbor))
         return None 
     
+    def solve_astar_dynamique(self) -> List[Tuple[int, int]]:
+        """
+        Trouve le chemin le plus court entre D et S en évitant les murs et le feu.
+        Retourne la liste des cases du chemin [(r,c), (r,c)...] ou None.
+        """
+        fire_times = self.compute_fire_spread()
+        
+        start = self.prisoner_pos
+        _, s_pos = self.find_positions()
+        goal = s_pos
+
+        open_set = []
+        heapq.heappush(open_set, (0, start))
+
+        came_from = {} 
+        g_score = {start: 0} 
+        f_score = {start: self.heuristic(start, goal)}
+
+        while open_set:
+            current_f, current = heapq.heappop(open_set)
+
+            if current == goal:
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.reverse()
+                return path
+
+            r, c = current
+            directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            
+            for dr, dc in directions:
+                nr, nc = r + dr, c + dc
+                neighbor = (nr, nc)
+                
+                # Vérification des limites de la grille
+                if 0 <= nr < self.rows and 0 <= nc < self.cols:
+                    
+                    cell_content = self.grid[nr][nc]
+                    
+                    # OBSTACLES STATIQUES
+                    if cell_content == '#':
+                        continue
+
+                    # TEMPS ET FEU
+                    tentative_g_score = g_score[current] + 1
+                    # Le temps d'arrivée est égal au nombre de pas
+                    arrival_time = tentative_g_score 
+                    
+                    if arrival_time < fire_times[nr][nc]:
+                        
+                        if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+                            came_from[neighbor] = current
+                            g_score[neighbor] = tentative_g_score
+                            f = tentative_g_score + self.heuristic(neighbor, goal)
+                            f_score[neighbor] = f
+                            heapq.heappush(open_set, (f, neighbor))
+                            
+        return None 
     
     def run(self) -> str:
         print("--- Recherche de chemin avec A* ---")
-        path = self.solve_astar()
+        path = self.solve_astar_dynamique()
         
         if path:
             print(f"Chemin trouvé en {len(path)} étapes !")
