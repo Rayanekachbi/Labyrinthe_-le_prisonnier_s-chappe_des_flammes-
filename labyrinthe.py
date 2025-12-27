@@ -1,5 +1,6 @@
 import sys
 from typing import List, Tuple
+import heapq 
 
 class LabyrinthSimulation:
     def __init__(self, n_rows: int, m_cols: int, grid: List[List[str]]):
@@ -20,7 +21,6 @@ class LabyrinthSimulation:
                     exit_pos = (r, c)
         return prisoner, exit_pos
 
-    # --- Méthodes de logique (à compléter par toi plus tard) ---
     def burn_around(self, row: int, col: int) -> bool:
         #ici les 'F' (vieux feu) transforment les cases vides . voisines en 'A'
         #puis avec update_fire_state(self) les 'A' deviennent des feux 'F'
@@ -111,6 +111,8 @@ class LabyrinthSimulation:
                 self.prisoner_pos = (newR, newC)
             return False
         return False
+    
+    
         
     def update_fire_state(self) -> bool:
         #on trouve toutes les cases qui s'appretent à bruler et on les met en F
@@ -127,7 +129,96 @@ class LabyrinthSimulation:
                         game_over = True
         return game_over
     
+    
+    def heuristic(self, a: Tuple[int, int], b: Tuple[int, int]) -> int:
+        # Distance de Manhattan : |x1 - x2| + |y1 - y2|
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    def solve_astar(self) -> List[Tuple[int, int]]:
+        """
+        Trouve le chemin le plus court entre D et S en évitant les murs et le feu.
+        Retourne la liste des cases du chemin [(r,c), (r,c)...] ou None.
+        """
+        start = self.prisoner_pos
+        _, s_pos = self.find_positions()
+        goal = s_pos
+
+        # File de priorité : contient (f_score, (row, col))
+        # On commence par le départ
+        open_set = []
+        heapq.heappush(open_set, (0, start))
+
+        # Pour reconstruire le chemin à la fin : came_from[fils] = pere
+        came_from = {} 
+        # Coût du départ jusqu'à ici (tout est initialisé à l'infini sauf le départ 0). 
+        g_score = {start: 0} 
+
+        # Coût total estimé (g + h). 
+        # Initialisé avec l'heuristique du départ
+        f_score = {start: self.heuristic(start, goal)}
+
+        # Boucle principale
+        while open_set:
+            # On prend la case avec le plus petit f_score
+            current_f, current = heapq.heappop(open_set)
+
+            # si on a trouvé la sortie :
+            if current == goal:
+                # On reconstruit le chemin en remontant de la fin vers le début
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.reverse()
+                return path
+
+            # sinon on explore les voisins
+            r, c = current
+            directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            for dr, dc in directions:
+                neighbor = (r + dr, c + dc)
+                if 0 <= neighbor[0] < self.rows and 0 <= neighbor[1] < self.cols:
+                    
+                    cell_content = self.grid[neighbor[0]][neighbor[1]]
+                    # si un obstacle est touché on passe a la prochaine itération de la boucle
+                    if cell_content == '#' or cell_content == 'F' or cell_content == 'A':
+                        continue
+
+                    # Le coût pour aller à un voisin est de 1 (+ le coût pour arriver ici)
+                    tentative_g_score = g_score[current] + 1
+
+                    # Si ce chemin est meilleur que celui qu'on connaissait pour atteindre ce voisin
+                    # (ou si on ne connaissait pas encore ce voisin)
+                    if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+                        # On enregistre ce nouveau meilleur chemin
+                        came_from[neighbor] = current
+                        g_score[neighbor] = tentative_g_score
+                        f = tentative_g_score + self.heuristic(neighbor, goal)
+                        f_score[neighbor] = f
+                        
+                        # On l'ajoute à la liste des cases à explorer
+                        # si elle y est déjà avec un coût plus élevé on l'ajoute quand même
+                        # la version la moins chère sortira en premier
+                        heapq.heappush(open_set, (f, neighbor))
+        return None 
+    
+    
     def run(self) -> str:
+        print("--- Recherche de chemin avec A* ---")
+        path = self.solve_astar()
+        
+        if path:
+            print(f"Chemin trouvé en {len(path)} étapes !")
+            # On dessine le chemin sur la grille pour voir
+            for r, c in path:
+                if self.grid[r][c] != 'S': # On ne veut pas écraser le S
+                    self.grid[r][c] = '*' # On marque le chemin avec des étoiles
+            print(self)
+            return "Y"
+        else:
+            print("Aucun chemin trouvé (Bloqué par les murs ou le feu).")
+            return "N"
+        '''
         turn = 0
         max_turns = self.rows * self.cols
         
@@ -155,6 +246,7 @@ class LabyrinthSimulation:
                 return "Y"
                 
         return "N"
+        '''
 
     def __str__(self):
         """
